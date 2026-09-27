@@ -87,9 +87,13 @@ function ask(meta) {
   // hand below instead of relying on submit.
   const gate = el('div', 'gate');
   const input = el('input');
-  input.type = 'password';
-  // No name/id/autocomplete hint of "password": some browsers key their password-manager
-  // heuristics off those regardless of the autocomplete value.
+  // Chrome offers to fill in its own generated password for ANY empty, focused
+  // type="password" field, form or no form — that generated text silently replaces
+  // whatever she typed, and the real password then never matches. A plain text field,
+  // dot-masked with CSS instead of the browser's password machinery, gets none of that.
+  const canMask = CSS.supports('-webkit-text-security', 'disc');
+  input.type = canMask ? 'text' : 'password';
+  if (canMask) input.classList.add('masked');
   input.autocomplete = 'off';
   input.autocapitalize = 'off';
   input.autocorrect = 'off';
@@ -107,8 +111,9 @@ function ask(meta) {
   const peek = el('button', 'gate-peek', 'show');
   peek.type = 'button';
   peek.addEventListener('click', () => {
-    const hidden = input.type === 'password';
-    input.type = hidden ? 'text' : 'password';
+    const hidden = canMask ? input.classList.contains('masked') : input.type === 'password';
+    if (canMask) input.classList.toggle('masked', !hidden);
+    else input.type = hidden ? 'text' : 'password';
     peek.textContent = hidden ? 'hide' : 'show';
     input.focus();
   });

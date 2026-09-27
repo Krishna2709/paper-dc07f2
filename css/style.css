@@ -187,6 +187,7 @@ section {
   outline: none;
 }
 .gate input:focus-visible { border-bottom-color: var(--red); }
+.gate input.masked { -webkit-text-security: disc; }
 .gate button {
   font: inherit;
   font-size: 28px;
