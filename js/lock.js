@@ -80,16 +80,25 @@ function el(tag, className, text) {
 }
 
 function ask(meta) {
-  const gate = el('form', 'gate');
+  // Deliberately not a <form>: a <form> with one lone password field reads to Chrome as a
+  // sign-up page, and it offers to fill in its own generated password over ours. That
+  // generated one silently overwrites her typing and then never matches — every wrong
+  // password we saw during testing traced back to exactly this. Enter/click are wired by
+  // hand below instead of relying on submit.
+  const gate = el('div', 'gate');
   const input = el('input');
   input.type = 'password';
-  input.name = 'password';
+  // No name/id/autocomplete hint of "password": some browsers key their password-manager
+  // heuristics off those regardless of the autocomplete value.
   input.autocomplete = 'off';
   input.autocapitalize = 'off';
+  input.autocorrect = 'off';
   input.spellcheck = false;
+  input.setAttribute('data-lpignore', 'true'); // LastPass
+  input.setAttribute('data-1p-ignore', 'true'); // 1Password
   input.setAttribute('aria-label', 'password');
   const button = el('button', '', 'open');
-  button.type = 'submit';
+  button.type = 'button';
   const says = el('p', 'gate-says');
   says.setAttribute('role', 'status');
   const row = el('div', 'gate-row');
@@ -109,8 +118,7 @@ function ask(meta) {
   input.focus();
 
   return new Promise((resolve) => {
-    gate.addEventListener('submit', async (event) => {
-      event.preventDefault();
+    const submit = async () => {
       if (!input.value.trim()) return;
       button.disabled = true;
       says.textContent = 'opening…';
@@ -132,6 +140,10 @@ function ask(meta) {
         button.disabled = false;
         input.select();
       }
+    };
+    button.addEventListener('click', submit);
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') submit();
     });
   });
 }
