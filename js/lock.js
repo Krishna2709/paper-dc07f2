@@ -41,7 +41,8 @@ async function deriveKey(password, meta) {
 
 // Every vault file is a 12-byte IV followed by the ciphertext.
 async function open(key, path) {
-  const res = await fetch(path);
+  // no-store: after a republish, a cached file from the old build would not match the new key
+  const res = await fetch(path, { cache: 'no-store' });
   if (!res.ok) throw new Error(`could not fetch ${path}`);
   const bytes = new Uint8Array(await res.arrayBuffer());
   return crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(0, 12) }, key, bytes.slice(12));
@@ -141,7 +142,7 @@ export async function unlock() {
     document.body.prepend(el('p', 'noscript', 'This page only opens over a secure (https) link.'));
     return new Promise(() => {});
   }
-  const meta = await (await fetch('vault/meta.json')).json();
+  const meta = await (await fetch('vault/meta.json', { cache: 'no-store' })).json();
   const { key, story } = (await remembered()) || (await ask(meta));
 
   const urls = new Map();
