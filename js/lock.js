@@ -8,8 +8,23 @@ const b64 = {
   from: (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0)),
 };
 
-// Same rule as tools/build.mjs: forgiving about spaces and phone auto-capitals.
-const tidy = (password) => password.trim().toLowerCase();
+// Same rule as tools/build.mjs. Forgiving about everything a phone keyboard changes on
+// its own: capitals, extra spaces, curly quotes, and "--" turned into a long dash.
+const LOOKALIKES = new Map([
+  [0x2018, "'"],
+  [0x2019, "'"],
+  [0x201c, '"'],
+  [0x201d, '"'],
+  [0x2013, '-'],
+  [0x2014, '--'],
+]);
+const tidy = (password) =>
+  [...password.normalize('NFKC')]
+    .map((c) => LOOKALIKES.get(c.codePointAt(0)) ?? c)
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 
 async function deriveKey(password, meta) {
   const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(tidy(password)), 'PBKDF2', false, [
@@ -78,8 +93,17 @@ function ask(meta) {
   says.setAttribute('role', 'status');
   const row = el('div', 'gate-row');
   row.append(input, button);
+  // Lets her see what she typed; a hidden typo is the usual reason a right password fails.
+  const peek = el('button', 'gate-peek', 'show');
+  peek.type = 'button';
+  peek.addEventListener('click', () => {
+    const hidden = input.type === 'password';
+    input.type = hidden ? 'text' : 'password';
+    peek.textContent = hidden ? 'hide' : 'show';
+    input.focus();
+  });
   gate.append(el('h1', 'big', 'this one is only for you.'));
-  gate.append(row, says);
+  gate.append(row, peek, says);
   document.body.prepend(gate);
   input.focus();
 
@@ -96,8 +120,14 @@ function ask(meta) {
         gate.classList.add('gone');
         setTimeout(() => gate.remove(), 900);
         resolve({ key, story });
-      } catch {
-        says.textContent = 'not quite. try again?';
+      } catch (err) {
+        // A wrong key fails decryption with OperationError; anything else is not her fault.
+        if (err.name === 'OperationError') {
+          says.textContent = 'not quite. try again?';
+        } else {
+          console.error(err);
+          says.textContent = `could not open the page (${err.name}). check connection, then try again.`;
+        }
         button.disabled = false;
         input.select();
       }
